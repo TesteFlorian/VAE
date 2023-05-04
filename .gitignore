@@ -1,0 +1,6 @@
+data/
+__pycache__/
+torch_checkpoints/
+torch_datasets/
+torch_logs/
+torch_results/
