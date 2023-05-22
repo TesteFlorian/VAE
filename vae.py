@@ -5,8 +5,6 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-import matplotlib
-
 import matplotlib.pyplot as plt
 
 class VAE(nn.Module):
@@ -30,13 +28,13 @@ class VAE(nn.Module):
             nn.BatchNorm2d(8),
             nn.ReLU(),
 
-            #nn.Conv2d(8, 16, 4, 2, 1),
-            #nn.BatchNorm2d(16),
-            #nn.ReLU(),
+            # #nn.Conv2d(8, 16, 4, 2, 1),
+            # #nn.BatchNorm2d(16),
+            # #nn.ReLU(),
 
-            #nn.Conv2d(16, 32, 4, 2, 1),
-            #nn.BatchNorm2d(32),
-            #nn.ReLU(),
+            # #nn.Conv2d(16, 32, 4, 2, 1),
+            # #nn.BatchNorm2d(32),
+            # #nn.ReLU(),
 
 
         )
@@ -96,6 +94,7 @@ class VAE(nn.Module):
         self.mu = mu
         self.logvar = logvar
         return self.decoder(z), (self.mu, self.logvar)
+
 
     def xent_continuous_ber(self, recon_x, x, gamma=1):
         """p(x_i|z_i) a continuous bernoulli"""

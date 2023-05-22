@@ -2,10 +2,13 @@ import os
 import argparse
 import numpy as np
 import time
+import pandas as pd
 
 from torchvision import transforms, utils
 import torch
 from torch import nn
+
+torch.backends.cudnn.benchmark = True
 
 from utils import (get_train_dataloader,
                    get_test_dataloader,
@@ -26,10 +29,10 @@ def train(model, train_loader, device, optimizer, epoch):
     train_loss = 0
     loss_dict = {}
 
-    for batch_idx, (input_mb, lbl) in enumerate(train_loader):
+    for batch_idx, (input_mb) in enumerate(train_loader):
         print(batch_idx + 1, end=", ", flush=True)
         input_mb = input_mb.to(device) 
-        lbl = lbl.to(device) 
+        # lbl = lbl.to(device) 
         optimizer.zero_grad() # otherwise grads accumulate in backward
 
         loss, recon_mb, loss_dict_new = model.step(
@@ -40,28 +43,65 @@ def train(model, train_loader, device, optimizer, epoch):
         train_loss += loss.item()
         loss_dict = update_loss_dict(loss_dict, loss_dict_new)
         optimizer.step()
+    
     nb_mb_it = (len(train_loader.dataset) // input_mb.shape[0])
     train_loss /= nb_mb_it
     loss_dict = {k:v / nb_mb_it for k, v in loss_dict.items()}
-    return train_loss, input_mb, recon_mb, loss_dict, lbl
+    return train_loss, input_mb, recon_mb, loss_dict
 
 
 def eval(model, test_loader, device):
     model.eval()
-    input_mb, gt_mb = iter(test_loader).next()
-    gt_mb = gt_mb.to(device)
+    input_mb = next(iter(test_loader))
+    # gt_mb = gt_mb.to(device)
     input_mb = input_mb.to(device)
     recon_mb, opt_out = model(input_mb)
     recon_mb = model.mean_from_lambda(recon_mb)
-    return input_mb, recon_mb, gt_mb, opt_out
+    return input_mb, recon_mb, opt_out
+
+
+def extract_mu_values(model, data_loader,device):
+    model.eval()
+    mu_values = []
+
+    for batch_data in data_loader:
+        
+        batch_data = batch_data.to(device)  
+        # output = model.encoder(batch_data)
+        mu_values, logvar = model.encoder(batch_data)
+        
+
+    # mu_values = torch.cat(mu_values, dim=0)
+    # Convert the batch to a NumPy array
+    mu_values_np = mu_values.detach().cpu().numpy()
+    print(f"The mu shape is {mu_values_np.shape}")
+    # Export to csv
+    directory = './torch_results'
+    os.makedirs(directory, exist_ok=True)
+
+    file_path = os.path.join(directory, 'mu_values.csv')
+
+    np.savetxt(file_path, mu_values_np, delimiter=',')
+    print(f"Mu values saved to: {file_path}")
+
+    return mu_values, mu_values_np 
+   
 
 
 def main(args):
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() and not args.force_cpu else "cpu"
-    )
-    print("Cuda available ?", torch.cuda.is_available())
-    print("Pytorch device:", device)
+    if torch.cuda.is_available() and not args.force_cpu:
+        device = torch.device("cuda")
+        print("Number of CUDA devices:", torch.cuda.device_count())
+        for i in range(torch.cuda.device_count()):
+            device_name = torch.cuda.get_device_name(i)
+            print(f"Device {i}: {device_name}")
+    else:
+        device = torch.device("cpu")
+        print("CUDA is not available or --force-cpu is set.")
+
+    print("PyTorch device:", device)
+
+    
     seed = 11
     torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -114,7 +154,7 @@ def main(args):
         )
         for epoch in range(args.num_epochs):
             print("Epoch", epoch + 1)
-            loss, input_mb, recon_mb, loss_dict, lbl = train(
+            loss, input_mb, recon_mb, loss_dict,  = train(
                 model=model,
                 train_loader=train_dataloader,
                 device=device,
@@ -140,6 +180,8 @@ def main(args):
                     checkpoints_dir, f"{args.exp}_{epoch + 1}.pth"
                     )
                 )
+           
+             
 
             # print some reconstrutions
             if (epoch + 1) % 50 == 0 or epoch in [0, 4, 9, 14, 19, 24, 29, 49]:
@@ -154,7 +196,7 @@ def main(args):
                     f"torch_results/{args.exp}_img_train_{epoch + 1}.png"
                 )
                 model.eval()
-                input_test_mb, recon_test_mb, _, opt_out = eval(model=model,
+                input_test_mb, recon_test_mb,  opt_out = eval(model=model,
                     test_loader=test_dataloader,
                     device=device)
                     
@@ -170,7 +212,13 @@ def main(args):
                     img_test,
                     f"torch_results/{args.exp}_img_test_{epoch + 1}.png"
                 )
+    mu_values = extract_mu_values(model, train_dataloader,device=device)
+    print(mu_values)
+    
+   
 
 if __name__ == "__main__":
     args = parse_args()
     main(args)
+
+

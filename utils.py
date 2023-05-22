@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import torchvision
 import torch
+from torch.utils.data import DataLoader
 from datasets import *
 from vae import VAE
 import time
@@ -11,16 +12,16 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--params_id", default=100)
-    parser.add_argument("--img_size", default=512, type=int)
+    parser.add_argument("--img_size", default=270, type=int)
     parser.add_argument("--batch_size", default=16, type=int)
-    parser.add_argument("--batch_size_test", default=8, type=int)
+    parser.add_argument("--batch_size_test", default=16, type=int)
     parser.add_argument("--num_epochs", default=2000, type=int)
     parser.add_argument("--latent_img_size", default=32, type=int)
-    parser.add_argument("--z_dim", default=32, type=int)
+    parser.add_argument("--z_dim", default=38, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--beta", default=1.0, type=float)
     parser.add_argument("--exp", default=time.strftime("%Y%m%d-%H%M%S"))
-    parser.add_argument("--dataset", default="livestock")
+    parser.add_argument("--dataset", default="GLASS")
     parser.add_argument("--category", default=None)
     parser.add_argument("--defect", default=None)
     parser.add_argument(
@@ -66,12 +67,10 @@ def load_model_parameters(model, file_name, dir1, dir2, device):
 
     return model
 
-def get_train_dataloader(args, fake_dataset_size=None):
-    if args.dataset == "livestock":
-        train_dataset = LivestockTrainDataset(
-            args.img_size,
-            fake_dataset_size=1024 if fake_dataset_size is None else
-                fake_dataset_size,
+def get_train_dataloader(args):
+    if args.dataset == "GLASS":
+        train_dataset = GLASS_TrainDataset(
+            args.img_size
         )
     else:
         raise RuntimeError("No / Wrong dataset provided")
@@ -81,12 +80,10 @@ def get_train_dataloader(args, fake_dataset_size=None):
 
     return train_dataloader, train_dataset
 
-def get_test_dataloader(args, fake_dataset_size=30, with_loc=False):
-    if args.dataset == "livestock":
-        test_dataset = LivestockTestDataset(
-            args.img_size,
-            fake_dataset_size=512 if fake_dataset_size is None else
-                fake_dataset_size,
+def get_test_dataloader(args,):
+    if args.dataset == "GLASS":
+        test_dataset = GLASS_TestDataset(
+            args.img_size
         )
     else:
         raise RuntimeError("No / Wrong dataset provided")
@@ -141,5 +138,5 @@ def print_loss_logs(f_name, out_dir, loss_dict, epoch, exp_name):
             axis.plot(arr[arr.dtype.names[0]], arr[col], label=col)
         axis.legend()
         fig.savefig(os.path.join(out_dir,
-            f"{exp_name}_loss_{epoch + 1}.png"))
+            f"{exp_name}_loss_{epoch + 1}.tif"))
         plt.close(fig) 
