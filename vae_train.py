@@ -60,16 +60,17 @@ def eval(model, test_loader, device):
     return input_mb, recon_mb, opt_out
 
 
-def extract_mu_values(model, data_loader,device):
+def extract_mu_values(model, data_loader, device_extraction="cpu", epoch=""):
     model.eval()
-    mu_values = []
-
-    for batch_data in data_loader:
-        
-        batch_data = batch_data.to(device)  
-        # output = model.encoder(batch_data)
-        mu_values, logvar = model.encoder(batch_data)
-        
+    model.to(device_extraction)
+    #for batch_data in data_loader:
+    #    
+    #    batch_data = batch_data.to(device_extraction)  
+    #    # output = model.encoder(batch_data)
+    #    mu_values, logvar = model.encoder(batch_data)
+    print("train_dataset[:] shape", train_dataset[:].shape)
+    mu_values, _ = model.encoder(train_dataset[:])    
+    print("mu_values shape", mu_values.shape)
 
     # mu_values = torch.cat(mu_values, dim=0)
     # Convert the batch to a NumPy array
@@ -79,7 +80,7 @@ def extract_mu_values(model, data_loader,device):
     directory = './torch_results'
     os.makedirs(directory, exist_ok=True)
 
-    file_path = os.path.join(directory, 'mu_values.csv')
+    file_path = os.path.join(directory, f'mu_values_{epoch}.csv')
 
     np.savetxt(file_path, mu_values_np, delimiter=',')
     print(f"Mu values saved to: {file_path}")
@@ -185,6 +186,12 @@ def main(args):
 
             # print some reconstrutions
             if (epoch + 1) % 50 == 0 or epoch in [0, 4, 9, 14, 19, 24, 29, 49]:
+
+                extract_mu_values(model, train_dataset, "cpu",
+                        epoch + 1)
+                model.to(device)
+
+
                 img_train = utils.make_grid(
                     torch.cat((
                         input_mb,#[:, :, :256, :464],
@@ -212,7 +219,7 @@ def main(args):
                     img_test,
                     f"torch_results/{args.exp}_img_test_{epoch + 1}.png"
                 )
-    mu_values = extract_mu_values(model, train_dataloader,device=device)
+    mu_values, _ = extract_mu_values(model, train_dataset, "cpu", epoch)
     print(mu_values)
     
    
