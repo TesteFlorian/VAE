@@ -60,7 +60,7 @@ def eval(model, test_loader, device):
     return input_mb, recon_mb, opt_out
 
 
-def extract_mu_values(model, data_loader, device_extraction="cpu", epoch=""):
+def extract_mu_values(model, train_dataset_tensor, device_extraction="cpu", epoch=""):
     model.eval()
     model.to(device_extraction)
     #for batch_data in data_loader:
@@ -68,13 +68,14 @@ def extract_mu_values(model, data_loader, device_extraction="cpu", epoch=""):
     #    batch_data = batch_data.to(device_extraction)  
     #    # output = model.encoder(batch_data)
     #    mu_values, logvar = model.encoder(batch_data)
-    print("train_dataset[:] shape", train_dataset[:].shape)
-    mu_values, _ = model.encoder(train_dataset[:])    
+    print("train_dataset[:] shape", train_dataset_tensor.shape)
+    mu_values, _ = model.encoder(train_dataset_tensor)    
     print("mu_values shape", mu_values.shape)
 
     # mu_values = torch.cat(mu_values, dim=0)
     # Convert the batch to a NumPy array
     mu_values_np = mu_values.detach().cpu().numpy()
+    mu_values_np = np.mean(mu_values_np,axis=(2,3))
     print(f"The mu shape is {mu_values_np.shape}")
     # Export to csv
     directory = './torch_results'
@@ -114,7 +115,10 @@ def main(args):
 
     train_dataloader, train_dataset = get_train_dataloader(args)
     test_dataloader, test_dataset = get_test_dataloader(args)
-
+    train_dataset_tensor = []
+    for i in range(len(train_dataset)):
+        train_dataset_tensor.append(torch.from_numpy(train_dataset[i]))
+    train_dataset_tensor = torch.stack(train_dataset_tensor,axis = 0)
     nb_channels = args.nb_channels
 
     img_size = args.img_size
@@ -187,7 +191,7 @@ def main(args):
             # print some reconstrutions
             if (epoch + 1) % 50 == 0 or epoch in [0, 4, 9, 14, 19, 24, 29, 49]:
 
-                extract_mu_values(model, train_dataset, "cpu",
+                extract_mu_values(model, train_dataset_tensor, "cpu",
                         epoch + 1)
                 model.to(device)
 
@@ -219,7 +223,7 @@ def main(args):
                     img_test,
                     f"torch_results/{args.exp}_img_test_{epoch + 1}.png"
                 )
-    mu_values, _ = extract_mu_values(model, train_dataset, "cpu", epoch)
+    mu_values, _ = extract_mu_values(model, train_dataset_tensor, "cpu", epoch)
     print(mu_values)
     
    
