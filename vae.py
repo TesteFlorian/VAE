@@ -5,6 +5,8 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
+from torchsummary import summary
+
 import matplotlib.pyplot as plt
 
 class VAE(nn.Module):
@@ -28,43 +30,68 @@ class VAE(nn.Module):
             nn.BatchNorm2d(8),
             nn.ReLU(),
 
-            # #nn.Conv2d(8, 16, 4, 2, 1),
-            # #nn.BatchNorm2d(16),
-            # #nn.ReLU(),
+            # nn.Conv2d(4, 8, 3, 2, 1),
+            # nn.BatchNorm2d(8),
+            # nn.ReLU(),
 
-            # #nn.Conv2d(16, 32, 4, 2, 1),
-            # #nn.BatchNorm2d(32),
-            # #nn.ReLU(),
+            nn.Conv2d(8, 16, 4, 2, 1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
 
+            nn.Conv2d(16, 32, 4, 2, 1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+
+            # nn.Conv2d(32, 64, 5, 2, 1),
+            # nn.BatchNorm2d(64),
+            # nn.ReLU(),
+
+            # nn.Conv2d(64, 128, 3, 2, 1),
+            # nn.BatchNorm2d(128),
+            # nn.ReLU(),
+
+           
 
         )
         self.final_encoder = nn.Sequential(
-            #nn.Flatten(),
-            #nn.Linear(59392, self.z_dim * 2)
-            nn.Conv2d(8, self.z_dim * 2, kernel_size=1, stride=1, padding=0)
+            nn.Flatten(),
+            nn.Linear(59392, self.z_dim * 2)
+            # nn.Conv2d(16, self.z_dim * 2, kernel_size=1, stride=1, padding=0)
         )
 
         self.initial_decoder = nn.Sequential(
-            #nn.Linear(self.z_dim, 59392)
-            #nn.Unflatten(1, (32, 32, 58)),
-            nn.ConvTranspose2d(self.z_dim, 8,
-                kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2d(8),
-            nn.ReLU()
+            nn.Linear(self.z_dim, 59392),
+            nn.Unflatten(1, (32, 32, 58)),
+            # nn.ConvTranspose2d(self.z_dim, 16,
+            #     kernel_size=1, stride=1, padding=0),
+            # nn.BatchNorm2d(16),
+            # nn.ReLU()
         )
 
         self.conv_decoder = nn.Sequential(
 
-            #nn.ConvTranspose2d(32, 16, 4, 2, 1),
-            #nn.BatchNorm2d(16),
-            #nn.ReLU(),
+            # nn.ConvTranspose2d(128, 64, 3, 2, 1),
+            # nn.BatchNorm2d(32),
+            # nn.ReLU(),
+            
+            # nn.ConvTranspose2d(64, 32, 5, 2, 1),
+            # nn.BatchNorm2d(32),
+            # nn.ReLU(),
+            
+            nn.ConvTranspose2d(32, 16, 4, 2, 1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
 
-            #nn.ConvTranspose2d(16, 8, 4, 2, 1),
-            #nn.BatchNorm2d(8),
-            #nn.ReLU(),
+            nn.ConvTranspose2d(16, 8, 4, 2, 1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
 
-            nn.ConvTranspose2d(8, self.nb_channels, 4, 2, (1, 1),
-                output_padding=(0,1)),#, dilation=3, output_padding=(0, 1)),
+            # nn.ConvTranspose2d(8, 4, 3, 2, 1),
+            # nn.BatchNorm2d(8),
+            # nn.ReLU(),
+
+            nn.ConvTranspose2d(8, self.nb_channels, 4, 2, (2,1),
+                output_padding=(0, 1),dilation=3),
             nn.BatchNorm2d(self.nb_channels),
             nn.ReLU(),
         )
@@ -72,6 +99,8 @@ class VAE(nn.Module):
     def encoder(self, x):
         x = self.conv_encoder(x)
         x = self.final_encoder(x)
+        # print("Shape of encoder:", x.shape)
+
         return x[:, :self.z_dim], x[:, self.z_dim :]
 
     def reparameterize(self, mu, logvar):
@@ -93,10 +122,13 @@ class VAE(nn.Module):
         z = self.reparameterize(mu, logvar)
         self.mu = mu
         self.logvar = logvar
+
         return self.decoder(z), (self.mu, self.logvar)
 
 
     def xent_continuous_ber(self, recon_x, x, gamma=1):
+        # print("Shape of x:", x.shape)
+        # print("Shape of recon_x:", recon_x.shape)
         """p(x_i|z_i) a continuous bernoulli"""
         eps = 1e-6
 
@@ -164,3 +196,6 @@ class VAE(nn.Module):
         rec = self.mean_from_lambda(rec)
 
         return loss, rec, loss_dict
+
+
+
