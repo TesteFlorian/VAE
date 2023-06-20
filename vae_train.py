@@ -75,7 +75,7 @@ def extract_mu_values(model, train_dataset_tensor, device_extraction="cpu", epoc
     # mu_values = torch.cat(mu_values, dim=0)
     # Convert the batch to a NumPy array
     mu_values_np = mu_values.detach().cpu().numpy()
-    mu_values_np = np.mean(mu_values_np,axis=(2,3))
+    mu_values_np = np.mean(mu_values_np,axis=(1))
     print(f"The mu shape is {mu_values_np.shape}")
     # Export to csv
     directory = './torch_results'
@@ -191,11 +191,7 @@ def main(args):
             # print some reconstrutions
             if (epoch + 1) % 50 == 0 or epoch in [0, 4, 9, 14, 19, 24, 29, 49]:
 
-                extract_mu_values(model, train_dataset_tensor, "cpu",
-                        epoch + 1)
-                model.to(device)
-
-
+                
                 img_train = utils.make_grid(
                     torch.cat((
                         input_mb,#[:, :, :256, :464],
@@ -222,7 +218,11 @@ def main(args):
                 utils.save_image(
                     img_test,
                     f"torch_results/{args.exp}_img_test_{epoch + 1}.png"
+                
                 )
+                extract_mu_values(model, train_dataset_tensor, "cpu",
+                        epoch + 1)
+                model.to(device)
     mu_values, _ = extract_mu_values(model, train_dataset_tensor, "cpu", epoch)
     print(mu_values)
     
