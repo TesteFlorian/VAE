@@ -38,9 +38,9 @@ class VAE(nn.Module):
             nn.BatchNorm2d(16),
             nn.ReLU(),
 
-            nn.Conv2d(16, 32, 4, 2, 1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
+            # nn.Conv2d(16, 32, 4, 2, 1),
+            # nn.BatchNorm2d(32),
+            # nn.ReLU(),
 
             # nn.Conv2d(32, 64, 5, 2, 1),
             # nn.BatchNorm2d(64),
@@ -55,13 +55,13 @@ class VAE(nn.Module):
         )
         self.final_encoder = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(59392, self.z_dim * 2)
+            nn.Linear(121680, self.z_dim * 2)
             # nn.Conv2d(16, self.z_dim * 2, kernel_size=1, stride=1, padding=0)
         )
 
         self.initial_decoder = nn.Sequential(
-            nn.Linear(self.z_dim, 59392),
-            nn.Unflatten(1, (32, 32, 58)),
+            nn.Linear(self.z_dim, 121680),
+            nn.Unflatten(1, (16, 65, 117)),
             # nn.ConvTranspose2d(self.z_dim, 16,
             #     kernel_size=1, stride=1, padding=0),
             # nn.BatchNorm2d(16),
@@ -78,9 +78,9 @@ class VAE(nn.Module):
             # nn.BatchNorm2d(32),
             # nn.ReLU(),
             
-            nn.ConvTranspose2d(32, 16, 4, 2, 1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
+            # nn.ConvTranspose2d(32, 16, 4, 2, 1),
+            # nn.BatchNorm2d(16),
+            # nn.ReLU(),
 
             nn.ConvTranspose2d(16, 8, 4, 2, 1),
             nn.BatchNorm2d(8),
@@ -90,8 +90,8 @@ class VAE(nn.Module):
             # nn.BatchNorm2d(8),
             # nn.ReLU(),
 
-            nn.ConvTranspose2d(8, self.nb_channels, 4, 2, (2,1),
-                output_padding=(0, 1),dilation=3),
+            nn.ConvTranspose2d(8, self.nb_channels, 4, 2, (1,0),
+                output_padding=(0, 1)),#dilation=3),
             nn.BatchNorm2d(self.nb_channels),
             nn.ReLU(),
         )
