@@ -90,8 +90,6 @@ class VAE(nn.Module):
 
             nn.ConvTranspose2d(8, self.nb_channels, 4, 2, (1,0),
                 output_padding=(0, 1)),#dilation=3),
-            nn.BatchNorm2d(self.nb_channels),
-            nn.ReLU(),
         )
 
     def encoder(self, x):
