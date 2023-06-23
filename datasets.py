@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Dataset
 import rasterio
 import glob
-from torch.masked import masked_tensor, as_masked_tensor
+#from torch.masked import masked_tensor, as_masked_tensor
 import warnings
 
 # Disable prototype warnings and such
@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 
-DEFAULT_DIR = "/mnt/d/PhD/Donnees/GLASS_GPP/VAE/Corn_belt/July"
+DEFAULT_DIR = "Dataset/July"
 
 class GLASS_TrainDataset(Dataset):
     def __init__(self,img_size):
@@ -31,8 +31,8 @@ class GLASS_TrainDataset(Dataset):
         with rasterio.open(image_path) as src:
             # Read the image as a multi-dimensional NumPy array
             image = src.read()
-            # Replace NaN values with -1, images values start from 0
-            image = np.where(np.isnan(image), -1, image)
+            # Replace NaN values with 0, images values start from 0
+            image = np.where(np.isnan(image), 0, image)
             # Normalize each band separately
             max_pixel_values = np.nanmax(image, axis=(1, 2))
             image_normalized = (image.astype(np.float32) / max_pixel_values[:, np.newaxis, np.newaxis]).astype(np.float32)
@@ -59,8 +59,8 @@ class GLASS_TestDataset(Dataset):
         with rasterio.open(image_path) as src:
             # Read the image as a multi-dimensional NumPy array
             image = src.read()
-            # Replace NaN values with -1, images values start from 0
-            image = np.where(np.isnan(image), -1, image)
+            # Replace NaN values with 0, images values start from 0
+            image = np.where(np.isnan(image), 0, image)
             # Normalize each band separately
             max_pixel_values = np.nanmax(image, axis=(1, 2))
             image_normalized = (image.astype(np.float32) / max_pixel_values[:, np.newaxis, np.newaxis]).astype(np.float32)
