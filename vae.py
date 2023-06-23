@@ -5,8 +5,6 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-from torchsummary import summary
-
 import matplotlib.pyplot as plt
 
 class VAE(nn.Module):
