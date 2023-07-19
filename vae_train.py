@@ -14,6 +14,7 @@ from utils import (get_train_dataloader,
                    get_test_dataloader,
                    load_model_parameters,
                    load_vqvae,
+                   load_resnet_vae,
                    update_loss_dict,
                    print_loss_logs,
                    parse_args
@@ -50,6 +51,28 @@ def train(model, train_loader, device, optimizer, epoch):
     return train_loss, input_mb, recon_mb, loss_dict
 
 
+def plot_latent(VAE, train_dataset_tensor, device):
+    plot_dir = './torch_latent_plot'
+    if not os.path.isdir(plot_dir):
+        os.mkdir(plot_dir)
+    
+    current_time = time.strftime("%Y%m%d-%H%M%S")
+    filename = f"latent_plot_{current_time}.png"
+
+    with torch.no_grad():
+        z, _ = VAE.encoder(train_dataset_tensor.to(device))
+    z_np = z.cpu().numpy()
+    # print("z shape", z_np.shape)
+
+    plt.scatter(z_np[:, 0], z_np[:, 1], cmap="viridis")
+    plt.colorbar()
+    
+    plt.savefig(os.path.join(plot_dir, filename))
+
+
+
+
+
 def eval(model, test_loader, device):
     model.eval()
     input_mb = next(iter(test_loader))
@@ -61,6 +84,9 @@ def eval(model, test_loader, device):
 
 
 def extract_mu_values(model, train_dataset_tensor, device_extraction="cpu", epoch=""):
+    directory = f'./torch_results_{args.month}_zdim{args.z_dim}'
+
+
     model.eval()
     model.to(device_extraction)
     #for batch_data in data_loader:
@@ -70,15 +96,14 @@ def extract_mu_values(model, train_dataset_tensor, device_extraction="cpu", epoc
     #    mu_values, logvar = model.encoder(batch_data)
     print("train_dataset[:] shape", train_dataset_tensor.shape)
     mu_values, _ = model.encoder(train_dataset_tensor)    
-    print("mu_values shape", mu_values.shape)
-
+    # print("mu_values shape", mu_values.shape)
     # mu_values = torch.cat(mu_values, dim=0)
+
     # Convert the batch to a NumPy array
     mu_values_np = mu_values.detach().cpu().numpy()
-    mu_values_np = np.mean(mu_values_np,axis=(1))
+    # mu_values_np = np.mean(mu_values_np,axis=(1))
     print(f"The mu shape is {mu_values_np.shape}")
     # Export to csv
-    directory = './torch_results'
     os.makedirs(directory, exist_ok=True)
 
     file_path = os.path.join(directory, f'mu_values_{epoch}.csv')
@@ -90,7 +115,17 @@ def extract_mu_values(model, train_dataset_tensor, device_extraction="cpu", epoc
    
 
 
+
 def main(args):
+    # define directory outside main function so it be used elsewhere
+
+    directory = f'./torch_results_{args.month}_zdim{args.z_dim}'
+    #create directory if does not exist
+    os.makedirs(directory, exist_ok=True)
+
+    out_dir = f'./torch_logs_{args.month}_zdim{args.z_dim}'
+    os.makedirs(out_dir, exist_ok=True)
+    
     if torch.cuda.is_available() and not args.force_cpu:
         device = torch.device("cuda")
         print("Number of CUDA devices:", torch.cuda.device_count())
@@ -120,16 +155,15 @@ def main(args):
         train_dataset_tensor.append(torch.from_numpy(train_dataset[i]))
     train_dataset_tensor = torch.stack(train_dataset_tensor,axis = 0)
     nb_channels = args.nb_channels
-
+    beta = args.beta
     img_size = args.img_size
     batch_size = args.batch_size
     batch_size_test = args.batch_size_test
 
     print("Nb channels", nb_channels, "img_size", img_size, 
-        "mini batch size", batch_size)
+        "mini batch size", batch_size, "beta", beta)
 
 
-    out_dir = './torch_logs'
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
     checkpoints_dir ="./torch_checkpoints"
@@ -200,7 +234,7 @@ def main(args):
                 )
                 utils.save_image(
                     img_train,
-                    f"torch_results/{args.exp}_img_train_{epoch + 1}.png"
+                    os.path.join(directory, f"{args.exp}_img_train_{epoch + 1}.png")
                 )
                 model.eval()
                 input_test_mb, recon_test_mb,  opt_out = eval(model=model,
@@ -217,15 +251,17 @@ def main(args):
                 )
                 utils.save_image(
                     img_test,
-                    f"torch_results/{args.exp}_img_test_{epoch + 1}.png"
-                
+                    os.path.join(directory, f"{args.exp}_img_test_{epoch + 1}.png")
+              
                 )
                 extract_mu_values(model, train_dataset_tensor, "cpu",
                         epoch + 1)
                 model.to(device)
     mu_values, _ = extract_mu_values(model, train_dataset_tensor, "cpu", epoch)
     print(mu_values)
-    
+
+# Plot the latent space
+    plot_latent(model,train_dataset_tensor,device)
    
 
 if __name__ == "__main__":
