@@ -35,5 +35,4 @@ If you use this code in your research or project, please consider citing the fol
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
-
+This project is licensed under the [Creative Commons Attribution-NonCommercial (CC BY-NC) license]
