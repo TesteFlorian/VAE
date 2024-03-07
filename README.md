@@ -16,15 +16,15 @@ To use the VAE implemented in this repository, follow these steps:
     ```
 
 2. For Windows Users:
-    - Use the provided PowerShell script (`params.ps1`) to define the desired parameters for running the script. Open a PowerShell terminal and navigate to the repository directory. Then, execute the following command to run the script:
+    - Use the provided PowerShell script (`vae_train.ps1`) to define the desired parameters for running the script. Open a PowerShell terminal and navigate to the repository directory. Then, execute the following command to run the script:
         ```powershell
         .\vae_train.ps1
         ```
 
 3. For Linux Users:
-    - Use the provided Bash script (`params.sh`) to define the desired parameters for running the script. Open a terminal and navigate to the repository directory. Then, execute the following command to run the script:
+    - Use the provided Bash script (`vae_train.sh`) to define the desired parameters for running the script. Open a terminal and navigate to the repository directory. Then, execute the following command to run the script:
         ```bash
-        ./vae_train.sh
+        bash vae_train.sh
         ```
 '. The script will train the VAE model on the specified dataset and parameters. The model can be used for dimensionality reduction and extracting useful characteristics from satellite time series data. The model learns to compress the input data into a lower-dimensional latent space while preserving the essential features. These extracted features can then be used for downstream tasks such as clustering and classification.
 
