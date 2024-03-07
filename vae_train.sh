@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euxo pipefail
+
 # Define list of beta values to try
 betas=(0.001 0.01 0.1 1 2 5 10)
 

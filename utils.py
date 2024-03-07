@@ -25,21 +25,14 @@ def parse_args():
     parser.add_argument("--latent_img_size", default=32, type=int)
     parser.add_argument("--z_dim", default=37, type=int)
     parser.add_argument("--nb_channels", default=3, type=int)
-    parser.add_argument("--model", default="vae_grf")
-    parser.add_argument("--rec_loss", default="xent")
+    parser.add_argument("--model", default="vae")
     parser.add_argument("--beta", default=1.0, type=float),
-    parser.add_argument("--kfolds", default=37, type=int)
 
 
 
     # Data configuration
     parser.add_argument("--dataset", default="GLASS")
-    parser.add_argument("--category", default=None)
-    parser.add_argument("--defect", default=None)
-    parser.add_argument(
-        "--defect_list",
-        type=lambda s: [item for item in s.split(',')]
-    )
+    
 
     # Other configuration
     parser.add_argument("--month", default="dGPP_July", help="Month of the data")
@@ -47,7 +40,6 @@ def parse_args():
     parser.add_argument("--exp", default=time.strftime("%Y%m%d-%H%M%S"))
     parser.add_argument("--force_train", default=False, action='store_true')
     parser.add_argument("--force_cpu", dest='force_cpu', action='store_true')
-    # parser.add_argument('--no_force_cpu', dest='force_cpu', action='store_false')
 
 
     return parser.parse_args()
