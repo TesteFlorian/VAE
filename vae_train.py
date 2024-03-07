@@ -1,26 +1,12 @@
 import os
-import argparse
 import numpy as np
-import time
-import pandas as pd
-
-from torchvision import transforms, utils
+from torchvision import utils  
 import torch
-from torch import nn
+
+from datasets import *
+from utils import *
 
 torch.backends.cudnn.benchmark = True
-
-from utils import (get_train_dataloader,
-                   get_test_dataloader,
-                   load_model_parameters,
-                   load_vqvae,
-                   load_resnet_vae,
-                   update_loss_dict,
-                   print_loss_logs,
-                   parse_args
-                   )
-
-import matplotlib.pyplot as plt
 
 import sys
 
@@ -51,27 +37,6 @@ def train(model, train_loader, device, optimizer, epoch):
     return train_loss, input_mb, recon_mb, loss_dict
 
 
-def plot_latent(VAE, train_dataset_tensor, device):
-    plot_dir = './torch_latent_plot'
-    if not os.path.isdir(plot_dir):
-        os.mkdir(plot_dir)
-    
-    current_time = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"latent_plot_{current_time}.png"
-
-    with torch.no_grad():
-        z, _ = VAE.encoder(train_dataset_tensor.to(device))
-    z_np = z.cpu().numpy()
-    # print("z shape", z_np.shape)
-
-    plt.scatter(z_np[:, 0], z_np[:, 1], cmap="viridis")
-    plt.colorbar()
-    
-    plt.savefig(os.path.join(plot_dir, filename))
-
-
-
-
 
 def eval(model, test_loader, device):
     model.eval()
@@ -84,47 +49,104 @@ def eval(model, test_loader, device):
 
 
 def extract_mu_values(model, train_dataset_tensor, device_extraction="cpu", epoch=""):
-    directory = f'./torch_results_{args.month}_zdim{args.z_dim}'
+
+    if args.mask:
+        main = "masked_" + args.month  # Add 'masked_' before args.month
+    else:
+        main = args.month  # Keep args.month as it is
+
+    main = main.lstrip("./")  # Remove the "./" at the beginning
+    os.makedirs(main, exist_ok=True)
+
+    directory =  os.path.join(main,f'./torch_results_zdim{args.z_dim}')
+
+    #create directory if does not exist
+    os.makedirs(directory, exist_ok=True)
+
+    #Create sub directory for every beta tested
+    sub_directory = os.path.join(directory,f"{args.beta}")
+    #create directory if does not exist
+    os.makedirs(sub_directory, exist_ok=True)
+    
+    out_dir =  os.path.join(main,f'./torch_logs_{args.month}_zdim{args.z_dim}')
+    os.makedirs(out_dir, exist_ok=True)
+
+    #Create sub directory for every beta tested
+    sub_out_dir = os.path.join(out_dir,f"{args.beta}")
+    os.makedirs(sub_out_dir, exist_ok=True)
+
 
 
     model.eval()
     model.to(device_extraction)
-    #for batch_data in data_loader:
-    #    
-    #    batch_data = batch_data.to(device_extraction)  
-    #    # output = model.encoder(batch_data)
-    #    mu_values, logvar = model.encoder(batch_data)
-    print("train_dataset[:] shape", train_dataset_tensor.shape)
+   
     mu_values, _ = model.encoder(train_dataset_tensor)    
-    # print("mu_values shape", mu_values.shape)
-    # mu_values = torch.cat(mu_values, dim=0)
+    
 
     # Convert the batch to a NumPy array
     mu_values_np = mu_values.detach().cpu().numpy()
-    # mu_values_np = np.mean(mu_values_np,axis=(1))
     print(f"The mu shape is {mu_values_np.shape}")
-    # Export to csv
-    os.makedirs(directory, exist_ok=True)
 
-    file_path = os.path.join(directory, f'mu_values_{epoch}.csv')
+    # Export to csv
+    file_path = os.path.join(sub_directory, f'mu_values_{epoch}.csv')
 
     np.savetxt(file_path, mu_values_np, delimiter=',')
     print(f"Mu values saved to: {file_path}")
 
     return mu_values, mu_values_np 
+
+def extract_mu_values_early_stopping(model, train_dataset_tensor, device_extraction="cpu"):
+    model.eval()
+    model.to(device_extraction)
+
+    mu_values,_ = model.encoder(train_dataset_tensor)    
+
+    # Convert the batch to a NumPy array
+    mu_values_np = mu_values.detach().cpu().numpy()
+
+
+    return mu_values_np
+
    
 
 
 
 def main(args):
+
+    best_loss = float('inf')  # Initialize best loss to positive infinity
+    patience = 10  # Define the number of epochs to wait for loss improvement
+    num_epochs_without_improvement = 0
+    saved_mu_values = None
+
+
     # define directory outside main function so it be used elsewhere
 
-    directory = f'./torch_results_{args.month}_zdim{args.z_dim}'
+        
+    if args.mask:
+        main = "masked_" + args.month  # Add 'masked_' before args.month
+    else:
+        main = args.month  # Keep args.month as it is
+
+    main = main.lstrip("./")  # Remove the "./" at the beginning
+    os.makedirs(main, exist_ok=True)
+
+    directory =  os.path.join(main,f'./torch_results_zdim{args.z_dim}')
+
     #create directory if does not exist
     os.makedirs(directory, exist_ok=True)
 
-    out_dir = f'./torch_logs_{args.month}_zdim{args.z_dim}'
+    #Create sub directory for every beta tested
+
+    sub_directory = os.path.join(directory,f"{args.beta}")
+    #create directory if does not exist
+    os.makedirs(sub_directory, exist_ok=True)
+    
+    out_dir =  os.path.join(main,f'./torch_logs_{args.month}_zdim{args.z_dim}')
     os.makedirs(out_dir, exist_ok=True)
+
+    #Create sub directory for every beta tested
+    sub_out_dir = os.path.join(out_dir,f"{args.beta}")
+    os.makedirs(sub_out_dir, exist_ok=True)
     
     if torch.cuda.is_available() and not args.force_cpu:
         device = torch.device("cuda")
@@ -159,13 +181,14 @@ def main(args):
     img_size = args.img_size
     batch_size = args.batch_size
     batch_size_test = args.batch_size_test
+    month = args.month
 
     print("Nb channels", nb_channels, "img_size", img_size, 
-        "mini batch size", batch_size, "beta", beta)
+        "mini batch size", batch_size, "beta", beta,"month", month)
 
 
-    if not os.path.isdir(out_dir):
-        os.mkdir(out_dir)
+    if not os.path.isdir(sub_out_dir):
+        os.mkdir(sub_out_dir)
     checkpoints_dir ="./torch_checkpoints"
     if not os.path.isdir(checkpoints_dir):
         os.mkdir(checkpoints_dir)
@@ -191,6 +214,7 @@ def main(args):
             model.parameters(),
             lr=args.lr
         )
+        
         for epoch in range(args.num_epochs):
             print("Epoch", epoch + 1)
             loss, input_mb, recon_mb, loss_dict,  = train(
@@ -203,22 +227,41 @@ def main(args):
                 epoch + 1, args.num_epochs, loss))
 
             # print loss logs
-            f_name = os.path.join(out_dir, f"{args.exp}_loss_values.txt")
-            print_loss_logs(f_name, out_dir, loss_dict, epoch, args.exp)
+            f_name = os.path.join(sub_out_dir, f"{args.exp}_loss_values_{args.z_dim}_{args.beta}.txt")
+            print_loss_logs(f_name, sub_out_dir, loss_dict, epoch, args.exp)
 
-            #print(input_mb[0])
-            #print(recon_mb[0])
-            #plt.imshow(np.moveaxis(recon_mb[0].detach().cpu().numpy(), 0, 2))
-            #plt.show()
-                    
-            # save model parameters
+            # Check if the loss improved
+            if abs(loss) < abs(best_loss):
+                best_loss = loss
+                best_loss_dict = loss_dict
+                best_epochs = epoch
+                num_epochs_without_improvement = 0
+                # Save the current reconstruction and mu values
+                saved_reconstruction = recon_mb
+                saved_mu_values = extract_mu_values_early_stopping(model, train_dataset_tensor, "cpu")
+            else:
+                num_epochs_without_improvement += 1
+
+            # Check if early stopping criteria are met
+            if num_epochs_without_improvement >= patience:
+                print("Early stopping: Loss did not improve for {} epochs.".format(patience))
+                print(f"Best loss achieved at epoch {best_epochs}, Loss: {best_loss}")
+                break
+            
+            model.to(device)
+
+                 
+            
+        
+            
+                # save model parameters
             if (epoch + 1) % 100 == 0 or epoch in [0, 4, 9, 24]:
-                # to resume a training optimizer state dict and epoch
-                # should also be saved
-                torch.save(model.state_dict(), os.path.join(
-                    checkpoints_dir, f"{args.exp}_{epoch + 1}.pth"
+                    # to resume a training optimizer state dict and epoch
+                    # should also be saved
+                    torch.save(model.state_dict(), os.path.join(
+                        checkpoints_dir, f"{args.exp}_{epoch + 1}.pth"
+                        )
                     )
-                )
            
              
 
@@ -234,7 +277,7 @@ def main(args):
                 )
                 utils.save_image(
                     img_train,
-                    os.path.join(directory, f"{args.exp}_img_train_{epoch + 1}.png")
+                    os.path.join(sub_directory, f"{args.exp}_img_train_{epoch + 1}.png")
                 )
                 model.eval()
                 input_test_mb, recon_test_mb,  opt_out = eval(model=model,
@@ -251,21 +294,57 @@ def main(args):
                 )
                 utils.save_image(
                     img_test,
-                    os.path.join(directory, f"{args.exp}_img_test_{epoch + 1}.png")
+                    os.path.join(sub_directory, f"{args.exp}_img_test_{epoch + 1}.png")
               
                 )
                 extract_mu_values(model, train_dataset_tensor, "cpu",
                         epoch + 1)
                 model.to(device)
-    mu_values, _ = extract_mu_values(model, train_dataset_tensor, "cpu", epoch)
-    print(mu_values)
 
-# Plot the latent space
-    plot_latent(model,train_dataset_tensor,device)
-   
+       
+    # Save the mu values at the end of the training process if early stopping was triggered
+    if saved_mu_values is not None and num_epochs_without_improvement >= patience:
+        model.to("cpu")
+        file_path = os.path.join(sub_directory, f'mu_values_final_{best_epochs}.csv')
+        np.savetxt(file_path, saved_mu_values, delimiter=',')
+        print(f"Final Mu values saved to: {file_path}")
+
+        # Write loss dict
+        f_name = os.path.join(sub_out_dir, f"{args.exp}_final_loss_values_{args.z_dim}_{args.beta}.txt")
+        print_loss_logs(f_name, sub_out_dir, best_loss_dict, epoch, args.exp)
+
+
+    if saved_reconstruction is not None and num_epochs_without_improvement >= patience:
+            img_train = utils.make_grid(
+                torch.cat((
+                    input_mb,  # [:, :, :256, :464],
+                    saved_reconstruction,
+                ), dim=0), nrow=batch_size
+            )
+            utils.save_image(
+                img_train,
+                os.path.join(sub_directory, f"{args.exp}_final_img_train_{best_epochs}_.png")
+            )
+            img_test = utils.make_grid(
+                    torch.cat((
+                        input_test_mb,#[:, :, :256, :464],
+                        recon_test_mb),
+                        dim=0),
+                        nrow=batch_size_test
+                )
+            utils.save_image(
+                    img_test,
+                    os.path.join(sub_directory, f"{args.exp}_final_img_test_{best_epochs}.png")
+              
+                )
+
+    mu_values, _ = extract_mu_values(model, train_dataset_tensor, "cpu", epoch)
+    # print(mu_values)
+
 
 if __name__ == "__main__":
     args = parse_args()
     main(args)
+
 
 

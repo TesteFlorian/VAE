@@ -1,13 +1,7 @@
-import numpy as np
-import random
 import torch
+import os
 from torch import nn
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-from torchvision.models.resnet import resnet18
 
-
-import matplotlib.pyplot as plt
 
 class VAE(nn.Module):
     def __init__(
@@ -30,69 +24,37 @@ class VAE(nn.Module):
             nn.BatchNorm2d(8),
             nn.ReLU(),
 
-            # nn.Conv2d(4, 8, 3, 2, 1),
-            # nn.BatchNorm2d(8),
-            # nn.ReLU(),
+            
 
             nn.Conv2d(8, 16, 4, 2, 1),
             nn.BatchNorm2d(16),
             nn.ReLU(),
 
-            # nn.Conv2d(16, 32, 4, 2, 1),
-            # nn.BatchNorm2d(32),
-            # nn.ReLU(),
-
-            # nn.Conv2d(32, 64, 5, 2, 1),
-            # nn.BatchNorm2d(64),
-            # nn.ReLU(),
-
-            # nn.Conv2d(64, 128, 3, 2, 1),
-            # nn.BatchNorm2d(128),
-            # nn.ReLU(),
-
+         
            
 
         )
         self.final_encoder = nn.Sequential(
             nn.Flatten(),
             nn.Linear(121680, self.z_dim * 2)
-            # nn.Conv2d(16, self.z_dim * 2, kernel_size=1, stride=1, padding=0)
         )
 
         self.initial_decoder = nn.Sequential(
             nn.Linear(self.z_dim, 121680),
             nn.Unflatten(1, (16, 65, 117)),
-            # nn.ConvTranspose2d(self.z_dim, 16,
-            #     kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(16),
-            # nn.ReLU()
+            
         )
 
         self.conv_decoder = nn.Sequential(
-
-            # nn.ConvTranspose2d(128, 64, 3, 2, 1),
-            # nn.BatchNorm2d(32),
-            # nn.ReLU(),
-            
-            # nn.ConvTranspose2d(64, 32, 5, 2, 1),
-            # nn.BatchNorm2d(32),
-            # nn.ReLU(),
-            
-            # nn.ConvTranspose2d(32, 16, 4, 2, 1),
-            # nn.BatchNorm2d(16),
-            # nn.ReLU(),
 
             nn.ConvTranspose2d(16, 8, 4, 2, 1),
             nn.BatchNorm2d(8),
             nn.ReLU(),
 
-            # nn.ConvTranspose2d(8, 4, 3, 2, 1),
-            # nn.BatchNorm2d(8),
-            # nn.ReLU(),
-
             nn.ConvTranspose2d(8, self.nb_channels, 4, 2, (1,0),
                 output_padding=(0, 1)),#dilation=3),
         )
+        
 
     def encoder(self, x):
         x = self.conv_encoder(x)
@@ -114,15 +76,19 @@ class VAE(nn.Module):
         x = self.conv_decoder(z)
         x = nn.Sigmoid()(x)
         return x
+    
+    
 
     def forward(self, x):
         mu, logvar = self.encoder(x)
         z = self.reparameterize(mu, logvar)
         self.mu = mu
         self.logvar = logvar
+        # y_hat = self.classification(mu)
 
-        return self.decoder(z), (self.mu, self.logvar)
+        return self.decoder(z), (self.mu, self.logvar)#, y_hat)
 
+   
 
     def xent_continuous_ber(self, recon_x, x, gamma=1):
         # print("Shape of x:", x.shape)
@@ -163,7 +129,10 @@ class VAE(nn.Module):
 
     def tarctanh(self, x):
         return 0.5 * torch.log((1 + x) / (1 - x))
+    
 
+
+    
     def compute_loss(self, x, recon_x):
         """
         """
@@ -172,15 +141,22 @@ class VAE(nn.Module):
             torch.mean(self.xent_continuous_ber(recon_x, x), dim=(1, 2))
         )
         kld = torch.mean(self.kld())
+        
+        # BSS = self.brier_skill_score (y, y_hat)
+        mse_loss = torch.nn.MSELoss()
+        net_MSE = mse_loss(recon_x, x)
+        RMSE= torch.sqrt(net_MSE)
+
 
         # beta = 0.001
-        loss = rec_term - self.beta * kld
+        loss = rec_term - self.beta * kld 
 
         loss_dict = {
             "loss": loss,
             "rec_term": rec_term,
             "kld": kld,
             "beta*kld": self.beta * kld,
+            "RMSE" : RMSE,
         }
 
         return loss, loss_dict
@@ -194,178 +170,3 @@ class VAE(nn.Module):
         rec = self.mean_from_lambda(rec)
 
         return loss, rec, loss_dict
-
-
-
-
-class resnet_VAE(nn.Module):
-
-    def __init__(self, img_size, nb_channels, z_dim, beta=0.1,):
-        '''
-        '''
-        super(resnet_VAE, self).__init__()
-
-        self.img_size = img_size
-        self.nb_channels = nb_channels
-        self.z_dim = z_dim
-        self.beta = beta
-
-        self.nb_conv = 4
-        # the depth we will have at the end of the encoder given that a
-        # convolution incease depth by 2 starting at 32 after the first
-        self.max_depth_conv = 2 ** (4 + self.nb_conv)
-        
-        self.resnet = resnet18(pretrained=False)
-        self.resnet_entry = nn.Sequential(
-            nn.Conv2d(self.nb_channels, 64, kernel_size=7,
-                stride=2, padding=3, bias=False),
-            self.resnet.bn1,
-            self.resnet.relu,
-            self.resnet.maxpool
-        )
-        self.resnet18_layer_list = [
-            self.resnet.layer1,
-            self.resnet.layer2,
-            self.resnet.layer3,
-            self.resnet.layer4 
-        ]
-        self.encoder_layers = [self.resnet_entry] 
-        for i in range(1, self.nb_conv): 
-            try:
-                self.encoder_layers.append(self.resnet18_layer_list[i - 1])
-            except IndexError: 
-                depth_in = 2 ** (4 + i)
-                depth_out = 2 ** (4 + i + 1)
-                self.encoder_layers.append(nn.Sequential(
-                    nn.Conv2d(depth_in, depth_out, 4, 2, 1),
-                    nn.BatchNorm2d(depth_out),
-                    nn.ReLU()
-                    ))
-        self.conv_encoder = nn.Sequential(
-            *self.encoder_layers,
-        )
-        self.final_encoder = nn.Sequential(
-            nn.Conv2d(self.max_depth_conv, self.z_dim * 2, kernel_size=1,
-            stride=1, padding=0)
-        )
-
-        self.initial_decoder = nn.Sequential(
-            nn.ConvTranspose2d(self.z_dim, self.max_depth_conv,
-                kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2d(self.max_depth_conv),
-            nn.ReLU()
-        )
-            
-        nb_conv_dec = self.nb_conv
-
-        self.decoder_layers = []
-        for i in reversed(range(nb_conv_dec)):
-            depth_in = 2 ** (4 + i + 1)
-            depth_out = 2 ** (4 + i)
-            if i == 0:
-                depth_out = self.nb_channels
-                self.decoder_layers.append(nn.Sequential(
-                    nn.ConvTranspose2d(depth_in, depth_out, 4, 2, (1,3),
-                output_padding=(0, 0))),
-                )
-            else:
-                self.decoder_layers.append(nn.Sequential(
-                    nn.ConvTranspose2d(depth_in, depth_out, 4, 2, 1),
-                    nn.BatchNorm2d(depth_out),
-                    nn.ReLU()
-                ))
-        self.conv_decoder = nn.Sequential(
-            *self.decoder_layers
-        )
-
-
-    def encoder(self, x):
-        x = self.conv_encoder(x)
-        x = self.final_encoder(x)
-        return x[:, :self.z_dim], x[:, self.z_dim:]
-
-    def reparameterize(self, mu, logvar):
-        if self.training:
-            std = torch.exp(torch.mul(logvar, 0.5))
-            eps = torch.randn_like(std)
-            return eps * std + mu
-        else:
-            return mu
-
-    def decoder(self, z):
-        z = self.initial_decoder(z)
-        x = self.conv_decoder(z)
-        x = nn.Sigmoid()(x)
-        return x
-
-    def forward(self, x):
-        mu, logvar = self.encoder(x)
-        z = self.reparameterize(mu, logvar)
-        self.mu = mu
-        self.logvar = logvar
-        return self.decoder(z), (mu, logvar)
-
-    def xent_continuous_ber(self, recon_x, x, pixelwise=False):
-        ''' p(x_i|z_i) a continuous bernoulli '''
-        eps = 1e-6
-        def log_norm_const(x):
-            # numerically stable computation
-            x = torch.clamp(x, eps, 1 - eps)
-            x = torch.where((x < 0.49) | (x > 0.51), x, 0.49 *
-                    torch.ones_like(x))
-            return torch.log((2 * self.tarctanh(1 - 2 * x)) /
-                            (1 - 2 * x) + eps)
-        if pixelwise:
-            return (x * torch.log(recon_x + eps) +
-                            (1 - x) * torch.log(1 - recon_x + eps) +
-                            log_norm_const(recon_x))
-        else:
-            return torch.sum(x * torch.log(recon_x + eps) +
-                            (1 - x) * torch.log(1 - recon_x + eps) +
-                            log_norm_const(recon_x), dim=(1, 2, 3))
-
-    def mean_from_lambda(self, l):
-        ''' because the mean of a continuous bernoulli is not its lambda '''
-        l = torch.clamp(l, 10e-6, 1 - 10e-6)
-        l = torch.where((l < 0.49) | (l > 0.51), l, 0.49 *
-            torch.ones_like(l))
-        return l / (2 * l - 1) + 1 / (2 * self.tarctanh(1 - 2 * l))
-
-    def kld(self):
-        # NOTE -kld actually
-        return 0.5 * torch.sum(
-                1 + self.logvar - self.mu.pow(2) - self.logvar.exp(),
-            dim=(1)
-        )
-
-    def loss_function(self, recon_x, x):
-        rec_term = self.xent_continuous_ber(recon_x, x)
-        rec_term = torch.mean(rec_term)
-
-        kld = torch.mean(self.kld())
-
-        L = (rec_term + self.beta * kld)
-
-        loss = L
-
-        loss_dict = {
-            'loss': loss,
-            'rec_term': rec_term,
-            '-beta*kld': self.beta * kld
-        }
-
-        return loss, loss_dict
-
-    def step(self, input_mb):
-        recon_mb, _ = self.forward(input_mb)
-
-        loss, loss_dict = self.loss_function(recon_mb, input_mb)
-
-        recon_mb = self.mean_from_lambda(recon_mb)
-
-        return loss, recon_mb, loss_dict
-
-    def tarctanh(self, x):
-        return 0.5 * torch.log((1+x)/(1-x))
-
-        
